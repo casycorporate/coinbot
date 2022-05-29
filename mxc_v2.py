@@ -8,10 +8,12 @@ import hashlib
 import json
 from urllib import parse
 from types import SimpleNamespace
+from datetime import datetime
+import psycopg2
 
 
-API_KEY = 'mx0sC5LYhgEPV1YpKw'
-SECRET_KEY = '1f644e42950b4a7db799bafde2b5ddb1'
+API_KEY = ''
+SECRET_KEY = ''
 ROOT_URL = 'https://www.mexc.com'
 
 class ticker:
@@ -106,7 +108,7 @@ def get_deals(symbol, limit):
     print(response.json())
 
 
-def get_kline(symbol, interval):
+def get_kline(symbol, interval,limit):
     """k-line data"""
     method = 'GET'
     path = '/open/api/v2/market/kline'
@@ -115,9 +117,11 @@ def get_kline(symbol, interval):
         'api_key': API_KEY,
         'symbol': symbol,
         'interval': interval,
+        'limit': limit,
     }
     response = requests.request(method, url, params=params)
-    print(response.json())
+    # print(response.json())
+    return response
 
 
 def get_account_info():
@@ -243,15 +247,136 @@ def get_deal_detail(order_id):
     print(response.json())
 
 
-if __name__ == '__main__':
-    # get_symbols()
+DATABASE_CONFIG = {
+    "database": "coinbot",
+    "user": "postgres",
+    "password": "12345",
+    "host": "localhost",
+    "port": 5432,
+}
+
+
+def get_connection():
+    # RETURN THE CONNECTION OBJECT
+    return psycopg2.connect(
+        database=DATABASE_CONFIG.get('database'),
+        user=DATABASE_CONFIG.get('user'),
+        password=DATABASE_CONFIG.get('password'),
+        host=DATABASE_CONFIG.get('host'),
+        port=DATABASE_CONFIG.get('port'),
+    )
+
+
+def dict_to_json(value: dict):
+    # CONVERT DICT TO A JSON STRING AND RETURN
+    return json.dumps(value)
+
+
+def insert_value( timestmp, open_,close_,high,low,vol,amount,tablename, conn):
+    # CREATE A CURSOR USING THE CONNECTION OBJECT
+    curr = conn.cursor()
+
+    # EXECUTE THE INSERT QUERY
+    curr.execute(f'''
+        INSERT INTO
+            mexc.{tablename}(time_, open_,close_,high,low,vol,amount) 
+        VALUES
+            ('{timestmp}', '{open_}', '{close_}', '{high}', '{low}', '{vol}', '{amount}')
+    ''')
+
+    # COMMIT THE ABOVE REQUESTS
+    conn.commit()
+
+def checkTableExists(dbcon, tablename):
+    dbcur = dbcon.cursor()
+    dbcur.execute("""
+        SELECT COUNT(*)
+        FROM information_schema.tables
+        WHERE table_name = '{0}'
+        """.format(tablename.replace('\'', '\'\'')))
+    if dbcur.fetchone()[0] == 1:
+        dbcur.close()
+        return True
+
+    dbcur.close()
+    return False
+
+def insert_table(tableName,conn):
+    curr = conn.cursor()
+
+    if checkTableExists(conn, tableName):
+        print(tableName)
+    # EXECUTE THE INSERT QUERY
+        curr.execute(f'''
+        CREATE TABLE mexc.{tableName} (
+        time_ timestamp NULL,
+        open_ float8 NULL,
+        close_ float8 NULL,
+        high float8 NULL,
+        low float8 NULL,
+        vol float8 NULL,
+        amount float8 NULL
+    )
+            ''')
+
+    # COMMIT THE ABOVE REQUESTS
+    conn.commit()
+
+
+def checkTables():
+    conn = get_connection()
+    list = json.loads(get_symbols().content, object_hook=lambda d: SimpleNamespace(**d))
+    print(len(list.data))
+    for obj in list.data:
+        if "_USDT" in obj.symbol and not obj.symbol[0].isnumeric():
+            insert_table(obj.symbol,conn)
+    conn.close()
+
+
+def main():
+    # CREATE A PSYCOPG2 CONNECTION
+    conn = get_connection()
+
+    # CONVERT DICT OBJECT TO JSON STRING
     list = json.loads(get_symbols().content, object_hook=lambda d: SimpleNamespace(**d))
     for obj in list.data:
         print(obj.symbol)
-        get_kline(obj.symbol, '1m')
-        # get_ticker(obj.symbol)
-        # print(obj.symbol)
-    get_rate_limit()
+        if "_USDT" in obj.symbol and not obj.symbol[0].isnumeric():
+            data_kline = json.loads(get_kline(obj.symbol, '1m',70).content, object_hook=lambda d: SimpleNamespace(**d))
+            if hasattr(data_kline,'data'):
+                for objJ in data_kline.data:
+                    print(objJ)
+                    insert_value(datetime.fromtimestamp(objJ[0]),objJ[1],objJ[2],objJ[3],objJ[4],objJ[5],objJ[6],
+                             obj.symbol,conn=conn)
+    conn.close()
+
+
+if __name__ == '__main__':
+    checkTables()
+    main()
+    # get_symbols()
+    # conn = psycopg2.connect(
+    #     database="postgres", user='postgres', password='12345', host='127.0.0.1', port='5432'
+    # )
+    # # Creating a cursor object using the cursor() method
+    # cursor = conn.cursor()
+    #
+    # # Executing an MYSQL function using the execute() method
+    # cursor.execute("select version()")
+    #
+    # # Fetch a single row using fetchone() method.
+    # data = cursor.fetchone()
+    # print("Connection established to: ", data)
+    #
+    # # Closing the connection
+    # conn.close()
+    # list = json.loads(get_symbols().content, object_hook=lambda d: SimpleNamespace(**d))
+    # for obj in list.data:
+    #     print(obj.symbol)
+    #     get_kline(obj.symbol, '1m')
+    #     # get_ticker(obj.symbol)
+    #     # print(obj.symbol)
+    # get_rate_limit()
     # get_timestamp()
     # get_ticker('BTC_USDT')
     # get_depth('BTC_USDT', 5)
