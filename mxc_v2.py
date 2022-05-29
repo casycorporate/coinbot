@@ -9,11 +9,15 @@ import json
 from urllib import parse
 from types import SimpleNamespace
 from datetime import datetime
+from config import DATABASE_CONFIG
 import psycopg2
+from multiprocessing import Pool
+import os
+import time
 
 
-API_KEY = ''
-SECRET_KEY = ''
+API_KEY = 'mx0sC5LYhgEPV1YpKw'
+SECRET_KEY = '1f644e42950b4a7db799bafde2b5ddb1'
 ROOT_URL = 'https://www.mexc.com'
 
 class ticker:
@@ -247,13 +251,13 @@ def get_deal_detail(order_id):
     print(response.json())
 
 
-DATABASE_CONFIG = {
-    "database": "coinbot",
-    "user": "postgres",
-    "password": "12345",
-    "host": "localhost",
-    "port": 5432,
-}
+# DATABASE_CONFIG = {
+#     "database": "coinbot",
+#     "user": "postgres",
+#     "password": "12345",
+#     "host": "localhost",
+#     "port": 5432,
+# }
 
 
 def get_connection():
@@ -266,6 +270,7 @@ def get_connection():
         port=DATABASE_CONFIG.get('port'),
     )
 
+CONNECTION = get_connection()
 
 def dict_to_json(value: dict):
     # CONVERT DICT TO A JSON STRING AND RETURN
@@ -332,6 +337,10 @@ def checkTables():
             insert_table(obj.symbol,conn)
     conn.close()
 
+def sleepy(x):
+    print("Process Id",os.getpid())
+    time.sleep(x)
+    return x
 
 def main():
     # CREATE A PSYCOPG2 CONNECTION
@@ -339,20 +348,31 @@ def main():
 
     # CONVERT DICT OBJECT TO JSON STRING
     list = json.loads(get_symbols().content, object_hook=lambda d: SimpleNamespace(**d))
-    for obj in list.data:
-        print(obj.symbol)
-        if "_USDT" in obj.symbol and not obj.symbol[0].isnumeric():
-            data_kline = json.loads(get_kline(obj.symbol, '1m',70).content, object_hook=lambda d: SimpleNamespace(**d))
-            if hasattr(data_kline,'data'):
-                for objJ in data_kline.data:
-                    print(objJ)
-                    insert_value(datetime.fromtimestamp(objJ[0]),objJ[1],objJ[2],objJ[3],objJ[4],objJ[5],objJ[6],
-                             obj.symbol,conn=conn)
+    while True:
+        p = Pool(25)
+        pool_output = p.map(getcoinprice, list.data)
+        print(pool_output)
+        time.sleep(60)
+        # for obj in list.data:
+        #
+        #     print(obj.symbol)
+        #     if "_USDT" in obj.symbol and not obj.symbol[0].isnumeric():
+        #         getcoinprice(obj)
     conn.close()
 
 
+def getcoinprice(obj):
+    conn = CONNECTION
+    data_kline = json.loads(get_kline(obj.symbol, '1m', 1).content, object_hook=lambda d: SimpleNamespace(**d))
+    if hasattr(data_kline, 'data'):
+        for objJ in data_kline.data:
+            print(objJ)
+            insert_value(datetime.fromtimestamp(objJ[0]), objJ[1], objJ[2], objJ[3], objJ[4], objJ[5], objJ[6],
+                         obj.symbol, conn=conn)
+
+
 if __name__ == '__main__':
-    checkTables()
+    # checkTables()
     main()
     # get_symbols()
     # conn = psycopg2.connect(
