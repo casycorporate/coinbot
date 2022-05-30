@@ -16,8 +16,8 @@ import os
 import time
 
 
-API_KEY = 'mx0sC5LYhgEPV1YpKw'
-SECRET_KEY = '1f644e42950b4a7db799bafde2b5ddb1'
+API_KEY = ''
+SECRET_KEY = ''
 ROOT_URL = 'https://www.mexc.com'
 
 class ticker:
