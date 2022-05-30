@@ -9,7 +9,7 @@ import json
 from urllib import parse
 from types import SimpleNamespace
 from datetime import datetime
-from config import DATABASE_CONFIG
+import config
 import psycopg2
 from multiprocessing import Pool
 import os
@@ -263,11 +263,11 @@ def get_deal_detail(order_id):
 def get_connection():
     # RETURN THE CONNECTION OBJECT
     return psycopg2.connect(
-        database=DATABASE_CONFIG.get('database'),
-        user=DATABASE_CONFIG.get('user'),
-        password=DATABASE_CONFIG.get('password'),
-        host=DATABASE_CONFIG.get('host'),
-        port=DATABASE_CONFIG.get('port'),
+        database=config.DATABASE_CONFIG['database'],
+        user=config.DATABASE_CONFIG['user'],
+        password=config.DATABASE_CONFIG['password'],
+        host=config.DATABASE_CONFIG['host'],
+        port=config.DATABASE_CONFIG['port']
     )
 
 CONNECTION = get_connection()
@@ -309,7 +309,7 @@ def checkTableExists(dbcon, tablename):
 def insert_table(tableName,conn):
     curr = conn.cursor()
 
-    if checkTableExists(conn, tableName):
+    if not checkTableExists(conn, tableName):
         print(tableName)
     # EXECUTE THE INSERT QUERY
         curr.execute(f'''
@@ -362,18 +362,19 @@ def main():
 
 
 def getcoinprice(obj):
-    conn = CONNECTION
-    data_kline = json.loads(get_kline(obj.symbol, '1m', 1).content, object_hook=lambda d: SimpleNamespace(**d))
-    if hasattr(data_kline, 'data'):
-        for objJ in data_kline.data:
-            print(objJ)
-            insert_value(datetime.fromtimestamp(objJ[0]), objJ[1], objJ[2], objJ[3], objJ[4], objJ[5], objJ[6],
-                         obj.symbol, conn=conn)
+    if "_USDT" in obj.symbol and not obj.symbol[0].isnumeric():
+        conn = CONNECTION
+        data_kline = json.loads(get_kline(obj.symbol, '1m', 1).content, object_hook=lambda d: SimpleNamespace(**d))
+        if hasattr(data_kline, 'data'):
+            for objJ in data_kline.data:
+                print(objJ)
+                insert_value(datetime.fromtimestamp(objJ[0]), objJ[1], objJ[2], objJ[3], objJ[4], objJ[5], objJ[6],
+                             obj.symbol, conn=conn)
 
 
 if __name__ == '__main__':
-    # checkTables()
-    main()
+    checkTables()
+    # main()
     # get_symbols()
     # conn = psycopg2.connect(
     #     database="postgres", user='postgres', password='12345', host='127.0.0.1', port='5432'
