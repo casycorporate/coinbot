@@ -1,7 +1,4 @@
-#!/usr/bin/python3
-# -*- coding: utf-8 -*-
-
-import time
+import requests as requests
 import requests
 import hmac
 import hashlib
@@ -14,10 +11,12 @@ import psycopg2
 from multiprocessing import Pool
 import os
 import time
+from DBprocess import DBObject  as dbo
+import logging
+logging.basicConfig(filename='logger.log', level=logging.INFO)
 
-
-API_KEY = ''
-SECRET_KEY = ''
+API_KEY = 'mx0sC5LYhgEPV1YpKw'
+SECRET_KEY = '1f644e42950b4a7db799bafde2b5ddb1'
 ROOT_URL = 'https://www.mexc.com'
 
 class ticker:
@@ -251,188 +250,62 @@ def get_deal_detail(order_id):
     print(response.json())
 
 
-# DATABASE_CONFIG = {
-#     "database": "coinbot",
-#     "user": "postgres",
-#     "password": "12345",
-#     "host": "localhost",
-#     "port": 5432,
-# }
+db=dbo()
+db.createSchema()
+db.createCoinListTable()
 
-
-def get_connection():
-    # RETURN THE CONNECTION OBJECT
-    return psycopg2.connect(
-        database=config.DATABASE_CONFIG['database'],
-        user=config.DATABASE_CONFIG['user'],
-        password=config.DATABASE_CONFIG['password'],
-        host=config.DATABASE_CONFIG['host'],
-        port=config.DATABASE_CONFIG['port']
-    )
-
-CONNECTION = get_connection()
-
-def dict_to_json(value: dict):
-    # CONVERT DICT TO A JSON STRING AND RETURN
-    return json.dumps(value)
-
-
-def insert_value( timestmp, open_,close_,high,low,vol,amount,tablename, conn):
-    # CREATE A CURSOR USING THE CONNECTION OBJECT
-    curr = conn.cursor()
-
-    # EXECUTE THE INSERT QUERY
-    curr.execute(f'''
-        INSERT INTO
-            mexc.{tablename}(time_, open_,close_,high,low,vol,amount) 
-        VALUES
-            ('{timestmp}', '{open_}', '{close_}', '{high}', '{low}', '{vol}', '{amount}')
-    ''')
-
-    # COMMIT THE ABOVE REQUESTS
-    conn.commit()
-
-def checkTableExists(dbcon, tablename):
-    dbcur = dbcon.cursor()
-    dbcur.execute("""
-        SELECT COUNT(*)
-        FROM information_schema.tables
-        WHERE table_name = '{0}'
-        """.format(tablename.replace('\'', '\'\'')))
-    if dbcur.fetchone()[0] == 1:
-        dbcur.close()
-        return True
-
-    dbcur.close()
-    return False
-
-def insert_table(tableName,conn):
-    curr = conn.cursor()
-
-    if not checkTableExists(conn, tableName):
-        print(tableName)
-    # EXECUTE THE INSERT QUERY
-        curr.execute(f'''
-        CREATE TABLE mexc.{tableName} (
-        time_ timestamp NULL,
-        open_ float8 NULL,
-        close_ float8 NULL,
-        high float8 NULL,
-        low float8 NULL,
-        vol float8 NULL,
-        amount float8 NULL
-    )
-            ''')
-
-    # COMMIT THE ABOVE REQUESTS
-    conn.commit()
 
 
 def checkTables():
-    conn = get_connection()
     list = json.loads(get_symbols().content, object_hook=lambda d: SimpleNamespace(**d))
     print(len(list.data))
+    dbTables=db.getAllTableList()
+
+
     for obj in list.data:
-        if "_USDT" in obj.symbol and (not "3L_" in obj.symbol)and (not "3S_" in obj.symbol) and(not obj.symbol[0].isnumeric()):
-            insert_table(obj.symbol,conn)
-    conn.close()
+        if "_USDT" in obj.symbol and (not "3L_" in obj.symbol)and (not "3S_" in obj.symbol) and(not obj.symbol[0].isnumeric()) and  obj.symbol not in dbTables:
+            db.create_table(obj.symbol)
+            db.insert2_coinList(obj.symbol)
 
+def getcoinprice(symbol):
+    try:
+        data_kline = json.loads(get_kline(symbol, '1m', 1).content, object_hook=lambda d: SimpleNamespace(**d))
+        if hasattr(data_kline, 'data'):
+            for objJ in data_kline.data:
+                 db.insert_value(datetime.fromtimestamp(objJ[0]), objJ[1], objJ[2], objJ[3], objJ[4], objJ[5], objJ[6],
+                              symbol.lower())
 
-def getAllTables():
-    curr = get_connection().cursor()
-    curr.execute("""SELECT table_name FROM information_schema.tables
-           WHERE table_schema = 'public'""")
-    tables = [i[0] for i in curr.fetchall()]
-    return tables
+    except Exception as e:  # work on python 3.x
+        print(e)
+        print(symbol)
+        logging.error('Failed to upload to ftp: ' + str(e))
 
 
 def main():
     # CREATE A PSYCOPG2 CONNECTION
-    conn = get_connection()
 
     # CONVERT DICT OBJECT TO JSON STRING
-    list = json.loads(get_symbols().content, object_hook=lambda d: SimpleNamespace(**d))
-    while True:
+    coinList=db.getAllTableList()
+    logging.info('Started')
+
+
+    for i in range(0,25):
         p = Pool(25)
-        pool_output = p.map(getcoinprice, list.data)
-        print(pool_output)
+        pool_output = p.map(getcoinprice, coinList)
         time.sleep(60)
+        print(i)
+
         # for obj in list.data:
         #
         #     print(obj.symbol)
         #     if "_USDT" in obj.symbol and not obj.symbol[0].isnumeric():
         #         getcoinprice(obj)
-    conn.close()
 
-
-def getcoinprice(obj):
-    if "_USDT" in obj.symbol and not obj.symbol[0].isnumeric():
-        conn = CONNECTION
-        data_kline = json.loads(get_kline(obj.symbol, '1m', 1).content, object_hook=lambda d: SimpleNamespace(**d))
-        if hasattr(data_kline, 'data'):
-            for objJ in data_kline.data:
-                print(objJ)
-                insert_value(datetime.fromtimestamp(objJ[0]), objJ[1], objJ[2], objJ[3], objJ[4], objJ[5], objJ[6],
-                             obj.symbol, conn=conn)
-
+        """    while True:
+                for i in coinList:
+                    getcoinprice(i)
+                    print(i)
+                time.sleep(60)"""
 
 if __name__ == '__main__':
-    # checkTables()
     main()
-    # get_symbols()
-    # conn = psycopg2.connect(
-    #     database="postgres", user='postgres', password='12345', host='127.0.0.1', port='5432'
-    # )
-    # # Creating a cursor object using the cursor() method
-    # cursor = conn.cursor()
-    #
-    # # Executing an MYSQL function using the execute() method
-    # cursor.execute("select version()")
-    #
-    # # Fetch a single row using fetchone() method.
-    # data = cursor.fetchone()
-    # print("Connection established to: ", data)
-    #
-    # # Closing the connection
-    # conn.close()
-    # list = json.loads(get_symbols().content, object_hook=lambda d: SimpleNamespace(**d))
-    # for obj in list.data:
-    #     print(obj.symbol)
-    #     get_kline(obj.symbol, '1m')
-    #     # get_ticker(obj.symbol)
-    #     # print(obj.symbol)
-    # get_rate_limit()
-    # get_timestamp()
-    # get_ticker('BTC_USDT')
-    # get_depth('BTC_USDT', 5)
-    # get_deals('BTC_USDT', 5)
-    # get_kline('BTC_USDT', '1m')
-    # get_account_info()
-    # place_order('BTC_USDT', 7900, 0.1, 'BID', 'LIMIT_ORDER')
-    # place_order('WEMIX_USDTttt', 3.2, 3.1, 'BID', 'LIMIT_ORDER')
-    # cancel_order('cfc5a95618f****6d751dd04b2')
-    # cancel_order(['cfc5a95618f****d751dd04b2', 'b956dfc923d***31b383c9d'])
-    # batch_orders([
-    #     {
-    #         'symbol': 'BTC_USDT',
-    #         'price': '7900',
-    #         'quantity': '1',
-    #         'trade_type': 'BID',
-    #         'order_type': 'LIMIT_ORDER',
-    #     },
-    #     {
-    #         'symbol': 'BTC_USDT',
-    #         'price': '7901',
-    #         'quantity': '1',
-    #         'trade_type': 'ASK',
-    #         'order_type': 'LIMIT_ORDER',
-    #     },
-    # ])
-    # get_open_orders('BTC_USDT')
-    # get_all_orders('BTC_USDT', 'BID')
-    # query_order('ccbd62471d***dd109903e')
-    # query_order(['ec72970d2****8264d7e86e', 'fd4d614ee4cf46***c7c82c0'])
-    # get_deal_orders('BTC_USDT')
-    # get_deal_detail('ccbd62471d*****ddd109903e')
-
-
