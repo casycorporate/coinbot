@@ -16,9 +16,9 @@ import os
 import time
 
 
-API_KEY = ''
-SECRET_KEY = ''
-ROOT_URL = 'https://www.mexc.com'
+API_KEY = config.MEXC_CONFIG['API_KEY']
+SECRET_KEY = config.MEXC_CONFIG['SECRET_KEY']
+ROOT_URL = config.MEXC_CONFIG['ROOT_URL']
 
 class ticker:
     def __init__(self, symbol, state, price_scale):
@@ -251,13 +251,6 @@ def get_deal_detail(order_id):
     print(response.json())
 
 
-# DATABASE_CONFIG = {
-#     "database": "coinbot",
-#     "user": "postgres",
-#     "password": "12345",
-#     "host": "localhost",
-#     "port": 5432,
-# }
 
 
 def get_connection():
