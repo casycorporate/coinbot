@@ -7,17 +7,17 @@ from urllib import parse
 from types import SimpleNamespace
 from datetime import datetime
 import config
-import psycopg2
 from multiprocessing import Pool
-import os
 import time
 from DBprocess import DBObject  as dbo
 import logging
+import klineModel
 logging.basicConfig(filename='logger.log', level=logging.INFO)
 
-API_KEY = 'mx0sC5LYhgEPV1YpKw'
-SECRET_KEY = '1f644e42950b4a7db799bafde2b5ddb1'
-ROOT_URL = 'https://www.mexc.com'
+
+API_KEY = config.MEXC_CONFIG['API_KEY']
+SECRET_KEY = config.MEXC_CONFIG['SECRET_KEY']
+ROOT_URL = config.MEXC_CONFIG['ROOT_URL']
 
 class ticker:
     def __init__(self, symbol, state, price_scale):
@@ -269,12 +269,9 @@ def checkTables():
 
 def getcoinprice(symbol):
     try:
-        data_kline = json.loads(get_kline(symbol, '1m', 1).content, object_hook=lambda d: SimpleNamespace(**d))
+        data_kline = json.loads(get_kline(symbol, '1d', 14).content, object_hook=lambda d: SimpleNamespace(**d))
         if hasattr(data_kline, 'data'):
-            for objJ in data_kline.data:
-                 db.insert_value(datetime.fromtimestamp(objJ[0]), objJ[1], objJ[2], objJ[3], objJ[4], objJ[5], objJ[6],
-                              symbol.lower())
-
+            return data_kline.data
     except Exception as e:  # work on python 3.x
         print(e)
         print(symbol)

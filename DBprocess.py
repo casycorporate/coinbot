@@ -1,5 +1,5 @@
 import psycopg2
-from coinbot import  config
+import  config
 
 
 class DBObject():
