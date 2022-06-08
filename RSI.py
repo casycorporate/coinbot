@@ -5,7 +5,7 @@ import  mexcAPI as api
 import numpy as np
 from math import floor
 import numpy as np
-# from termcolor import colored as cl
+from termcolor import colored as cl
 
 plt.style.use('fivethirtyeight')
 plt.rcParams['figure.figsize'] = (20, 10)
@@ -19,25 +19,10 @@ def getminutedata(data):
     frame=frame.astype(float)
     return frame
 
-# def get_historical_data(symbol, start_date=None):
-#     api_key = open(r'api_key.txt')
-#     api_url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={symbol}&apikey={api_key}&outputsize=full'
-#     raw_df = requests.get(api_url).json()
-#     df = pd.DataFrame(raw_df[f'Time Series (Daily)']).T
-#     df = df.rename(columns={'1. open': 'open', '2. high': 'high', '3. low': 'low', '4. close': 'close',
-#                             '5. adjusted close': 'adj close', '6. volume': 'volume'})
-#     for i in df.columns:
-#         df[i] = df[i].astype(float)
-#     df.index = pd.to_datetime(df.index)
-#     df = df.iloc[::-1].drop(['7. dividend amount', '8. split coefficient'], axis=1)
-#     if start_date:
-#         df = df[df.index >= start_date]
-#     return df
-#
-#
-eth_usdt = api.getcoinprice('ETH_USDT')
-df1=getminutedata(eth_usdt)
-print(df1)
+
+eth_usdtt = api.getcoinprice('ETH_USDT')
+eth_usdt=getminutedata(eth_usdtt)
+print(eth_usdt)
 
 
 def get_rsi(close, lookback):
@@ -62,7 +47,7 @@ def get_rsi(close, lookback):
     return rsi_df[3:]
 
 
-result= get_rsi(df1['close'], 14)
+result= get_rsi(eth_usdt['close'], 14)
 print(result)
 eth_usdt['rsi_14']=result
 eth_usdt = eth_usdt.dropna()
@@ -171,6 +156,6 @@ for i in range(len(rsi_strategy_ret_df['rsi_returns'])):
 rsi_investment_ret_df = pd.DataFrame(rsi_investment_ret).rename(columns={0: 'investment_returns'})
 total_investment_ret = round(sum(rsi_investment_ret_df['investment_returns']), 2)
 profit_percentage = floor((total_investment_ret / investment_value) * 100)
-# print(cl('Profit gained from the RSI strategy by investing $100k in IBM : {}'.format(total_investment_ret),
-#          attrs=['bold']))
-# print(cl('Profit percentage of the RSI strategy : {}%'.format(profit_percentage), attrs=['bold']))
+print(cl('Profit gained from the RSI strategy by investing $100k in IBM : {}'.format(total_investment_ret),
+         attrs=['bold']))
+print(cl('Profit percentage of the RSI strategy : {}%'.format(profit_percentage), attrs=['bold']))
